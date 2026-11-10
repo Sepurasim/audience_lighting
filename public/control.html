@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stadium Light – Control</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111;
+      color: #eee;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    h1 { margin-bottom: 6px; }
+    .sub { color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+
+    .status-bar {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+      padding: 12px 16px;
+      background: #1a1a1a;
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+    .status-bar span { color: #0af; }
+
+    .zones {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .zone-card {
+      background: #1c1c1c;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .zone-card h3 {
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .clients {
+      font-size: 0.8rem;
+      color: #0af;
+      background: #0a2a3a;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .preview {
+      height: 48px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      border: 1px solid #444;
+      transition: background 0.05s;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: #999;
+      margin-bottom: 2px;
+      margin-top: 8px;
+    }
+    input[type=range] {
+      width: 100%;
+      accent-color: #0af;
+    }
+    .val {
+      float: right;
+      color: #ccc;
+      font-size: 0.8rem;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+    .row > div { flex: 1; }
+
+    button.blackout {
+      margin-top: 12px;
+      width: 100%;
+      padding: 8px;
+      background: #300;
+      color: #f66;
+      border: 1px solid #600;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    button.blackout:active { background: #500; }
+
+    #globalBlackout {
+      margin-bottom: 20px;
+      padding: 12px 24px;
+      background: #400;
+      color: #faa;
+      border: 1px solid #800;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Stadium Light – Operator</h1>
+  <p class="sub">Manuelle Steuerung + Live-Status · 10 Zonen · RGBW + Dimmer + Strobe</p>
+
+  <div class="status-bar">
+    <div>Verbindung: <span id="conn">…</span></div>
+    <div>Gesamt-Clients: <span id="totalClients">0</span></div>
+  </div>
+
+  <button id="globalBlackout">GLOBAL BLACKOUT</button>
+
+  <div class="zones" id="zones"></div>
+
+  <script>
+    const NUM_ZONES = 10;
+    let ws = null;
+    const zoneState = {};
+
+    const zonesEl = document.getElementById('zones');
+    const connEl = document.getElementById('conn');
+    const totalEl = document.getElementById('totalClients');
+
+    // Build cards
+    for (let i = 1; i <= NUM_ZONES; i++) {
+      zoneState[i] = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, clients: 0 };
+
+      const card = document.createElement('div');
+      card.className = 'zone-card';
+      card.id = `zone-${i}`;
+      card.innerHTML = `
+        <h3>Zone ${i} <span class="clients" id="clients-${i}">0</span></h3>
+        <div class="preview" id="preview-${i}"></div>
+
+        <label>Dimmer <span class="val" id="dim-val-${i}">0</span></label>
+        <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="dimmer" id="dim-${i}">
+
+        <div class="row">
+          <div>
+            <label>R <span class="val" id="r-val-${i}">0</span></label>
+            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="r" id="r-${i}">
+          </div>
+          <div>
+            <label>G <span class="val" id="g-val-${i}">0</span></label>
+            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="g" id="g-${i}">
+          </div>
+          <div>
+            <label>B <span class="val" id="b-val-${i}">0</span></label>
+            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="b" id="b-${i}">
+          </div>
+          <div>
+            <label>W <span class="val" id="w-val-${i}">0</span></label>
+            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="w" id="w-${i}">
+          </div>
+        </div>
+
+        <label>Strobe <span class="val" id="strobe-val-${i}">0</span></label>
+        <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="strobe" id="strobe-${i}">
+
+        <button class="blackout" data-zone="${i}">Blackout Zone ${i}</button>
+      `;
+      zonesEl.appendChild(card);
+    }
+
+    // Event listeners
+    document.querySelectorAll('input[type=range]').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const zone = +e.target.dataset.zone;
+        const ch = e.target.dataset.ch;
+        const val = +e.target.value;
+        zoneState[zone][ch] = val;
+        document.getElementById(`${ch === 'dimmer' ? 'dim' : ch}-val-${zone}`).textContent = val;
+        updatePreview(zone);
+        sendManual(zone);
+      });
+    });
+
+    document.querySelectorAll('button.blackout').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const zone = +btn.dataset.zone;
+        ['dimmer','r','g','b','w','strobe'].forEach(ch => {
+          zoneState[zone][ch] = 0;
+          const id = ch === 'dimmer' ? `dim-${zone}` : `${ch}-${zone}`;
+          document.getElementById(id).value = 0;
+          document.getElementById(`${ch === 'dimmer' ? 'dim' : ch}-val-${zone}`).textContent = 0;
+        });
+        updatePreview(zone);
+        sendManual(zone);
+      });
+    });
+
+    document.getElementById('globalBlackout').addEventListener('click', () => {
+      for (let i = 1; i <= NUM_ZONES; i++) {
+        ['dimmer','r','g','b','w','strobe'].forEach(ch => {
+          zoneState[i][ch] = 0;
+          const id = ch === 'dimmer' ? `dim-${i}` : `${ch}-${i}`;
+          document.getElementById(id).value = 0;
+          document.getElementById(`${ch === 'dimmer' ? 'dim' : ch}-val-${i}`).textContent = 0;
+        });
+        updatePreview(i);
+        sendManual(i);
+      }
+    });
+
+    function updatePreview(zone) {
+      const s = zoneState[zone];
+      const d = s.dimmer / 255;
+      const r = Math.round(s.r * d);
+      const g = Math.round(s.g * d);
+      const b = Math.round(s.b * d);
+      const wAdd = Math.round(s.w * d * 0.7);
+      document.getElementById(`preview-${zone}`).style.background =
+        `rgb(${Math.min(255,r+wAdd)},${Math.min(255,g+wAdd)},${Math.min(255,b+wAdd)})`;
+    }
+
+    function sendManual(zone) {
+      if (!ws || ws.readyState !== 1) return;
+      const s = zoneState[zone];
+      ws.send(JSON.stringify({
+        type: 'manual',
+        zoneId: zone,
+        dimmer: s.dimmer,
+        r: s.r,
+        g: s.g,
+        b: s.b,
+        w: s.w,
+        strobe: s.strobe
+      }));
+    }
+
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onopen = () => {
+        connEl.textContent = 'verbunden';
+        ws.send(JSON.stringify({ type: 'registerControl' }));
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'status') {
+            let total = 0;
+            msg.zones.forEach(z => {
+              zoneState[z.id].clients = z.clients;
+              document.getElementById(`clients-${z.id}`).textContent = z.clients;
+              total += z.clients;
+            });
+            totalEl.textContent = total;
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        connEl.textContent = 'getrennt – reconnect…';
+        setTimeout(connect, 2000);
+      };
+    }
+
+    connect();
+  </script>
+</body>
+</html>
