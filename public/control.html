@@ -7,12 +7,62 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #111;
+      background: #0a0a0a;
       color: #eee;
       font-family: system-ui, -apple-system, sans-serif;
-      padding: 20px;
       min-height: 100vh;
     }
+
+    /* Password Gate */
+    #loginGate {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #loginGate img {
+      max-width: 320px;
+      margin-bottom: 40px;
+      opacity: 0.9;
+    }
+    #loginGate input {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #fff;
+      padding: 14px 18px;
+      font-size: 1.1rem;
+      border-radius: 10px;
+      width: 220px;
+      text-align: center;
+      letter-spacing: 4px;
+      margin-bottom: 16px;
+    }
+    #loginGate button {
+      background: #0af;
+      color: #000;
+      border: none;
+      padding: 12px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    #loginGate .error {
+      color: #f66;
+      margin-top: 12px;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    #app {
+      display: none;
+      padding: 20px;
+    }
+
     h1 { margin-bottom: 6px; }
     .sub { color: #888; margin-bottom: 24px; font-size: 0.9rem; }
 
@@ -20,13 +70,24 @@
       display: flex;
       gap: 16px;
       flex-wrap: wrap;
-      margin-bottom: 28px;
+      margin-bottom: 20px;
       padding: 12px 16px;
       background: #1a1a1a;
       border-radius: 10px;
       font-size: 0.9rem;
     }
     .status-bar span { color: #0af; }
+
+    #globalBlackout {
+      margin-bottom: 20px;
+      padding: 12px 24px;
+      background: #400;
+      color: #faa;
+      border: 1px solid #800;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
 
     .zones {
       display: grid;
@@ -55,11 +116,30 @@
     }
 
     .preview {
-      height: 48px;
+      height: 56px;
       border-radius: 8px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       border: 1px solid #444;
       transition: background 0.05s;
+      position: relative;
+    }
+    .preview .live-label {
+      position: absolute;
+      bottom: 4px;
+      right: 8px;
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.7);
+      text-shadow: 0 0 4px #000;
+    }
+
+    .live-values {
+      font-size: 0.75rem;
+      color: #aaa;
+      margin-bottom: 12px;
+      font-family: monospace;
+      background: #111;
+      padding: 6px 8px;
+      border-radius: 6px;
     }
 
     label {
@@ -97,42 +177,73 @@
       font-size: 0.85rem;
     }
     button.blackout:active { background: #500; }
-
-    #globalBlackout {
-      margin-bottom: 20px;
-      padding: 12px 24px;
-      background: #400;
-      color: #faa;
-      border: 1px solid #800;
-      border-radius: 10px;
-      font-size: 1rem;
-      cursor: pointer;
-    }
   </style>
 </head>
 <body>
-  <h1>Stadium Light – Operator</h1>
-  <p class="sub">Manuelle Steuerung + Live-Status · 10 Zonen · RGBW + Dimmer + Strobe</p>
 
-  <div class="status-bar">
-    <div>Verbindung: <span id="conn">…</span></div>
-    <div>Gesamt-Clients: <span id="totalClients">0</span></div>
+  <!-- Password Gate -->
+  <div id="loginGate">
+    <img src="logo.png" alt="Stadium Lighting">
+    <input type="password" id="pwInput" placeholder="Passwort" maxlength="8" autofocus>
+    <button id="loginBtn">Login</button>
+    <div class="error" id="loginError">Falsches Passwort</div>
   </div>
 
-  <button id="globalBlackout">GLOBAL BLACKOUT</button>
+  <div id="app">
+    <h1>Stadium Light – Operator</h1>
+    <p class="sub">Manuelle Steuerung + Live-Status · 10 Zonen · RGBW + Dimmer + Strobe</p>
 
-  <div class="zones" id="zones"></div>
+    <div class="status-bar">
+      <div>Verbindung: <span id="conn">…</span></div>
+      <div>Gesamt-Clients: <span id="totalClients">0</span></div>
+    </div>
+
+    <button id="globalBlackout">GLOBAL BLACKOUT</button>
+
+    <div class="zones" id="zones"></div>
+  </div>
 
   <script>
+    const PASSWORD = '1328';
     const NUM_ZONES = 10;
     let ws = null;
     const zoneState = {};
 
+    // ---- Password Protection ----
+    const loginGate = document.getElementById('loginGate');
+    const pwInput = document.getElementById('pwInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = document.getElementById('loginError');
+
+    function tryLogin() {
+      if (pwInput.value === PASSWORD) {
+        loginGate.style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        sessionStorage.setItem('stadium_auth', '1');
+        connect();
+      } else {
+        loginError.style.display = 'block';
+        pwInput.value = '';
+        pwInput.focus();
+      }
+    }
+
+    loginBtn.addEventListener('click', tryLogin);
+    pwInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') tryLogin();
+    });
+
+    // Auto-login if already authenticated in this session
+    if (sessionStorage.getItem('stadium_auth') === '1') {
+      loginGate.style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+    }
+
+    // ---- Build Zone Cards ----
     const zonesEl = document.getElementById('zones');
     const connEl = document.getElementById('conn');
     const totalEl = document.getElementById('totalClients');
 
-    // Build cards
     for (let i = 1; i <= NUM_ZONES; i++) {
       zoneState[i] = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, clients: 0 };
 
@@ -141,7 +252,10 @@
       card.id = `zone-${i}`;
       card.innerHTML = `
         <h3>Zone ${i} <span class="clients" id="clients-${i}">0</span></h3>
-        <div class="preview" id="preview-${i}"></div>
+        <div class="preview" id="preview-${i}">
+          <span class="live-label">LIVE</span>
+        </div>
+        <div class="live-values" id="live-${i}">D:0  R:0  G:0  B:0  W:0  S:0</div>
 
         <label>Dimmer <span class="val" id="dim-val-${i}">0</span></label>
         <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="dimmer" id="dim-${i}">
@@ -220,8 +334,16 @@
       const g = Math.round(s.g * d);
       const b = Math.round(s.b * d);
       const wAdd = Math.round(s.w * d * 0.7);
+      const fr = Math.min(255, r + wAdd);
+      const fg = Math.min(255, g + wAdd);
+      const fb = Math.min(255, b + wAdd);
+
       document.getElementById(`preview-${zone}`).style.background =
-        `rgb(${Math.min(255,r+wAdd)},${Math.min(255,g+wAdd)},${Math.min(255,b+wAdd)})`;
+        `rgb(${fr},${fg},${fb})`;
+
+      // Live values display
+      document.getElementById(`live-${zone}`).textContent =
+        `D:${s.dimmer}  R:${s.r}  G:${s.g}  B:${s.b}  W:${s.w}  S:${s.strobe}`;
     }
 
     function sendManual(zone) {
@@ -260,6 +382,31 @@
             });
             totalEl.textContent = total;
           }
+          // Live update from Art-Net / other sources
+          if (msg.type === 'zoneUpdate') {
+            const z = msg.zoneId;
+            zoneState[z].dimmer = msg.dimmer;
+            zoneState[z].r = msg.r;
+            zoneState[z].g = msg.g;
+            zoneState[z].b = msg.b;
+            zoneState[z].w = msg.w;
+            zoneState[z].strobe = msg.strobe;
+
+            // Update sliders + display without triggering send
+            document.getElementById(`dim-${z}`).value = msg.dimmer;
+            document.getElementById(`dim-val-${z}`).textContent = msg.dimmer;
+            document.getElementById(`r-${z}`).value = msg.r;
+            document.getElementById(`r-val-${z}`).textContent = msg.r;
+            document.getElementById(`g-${z}`).value = msg.g;
+            document.getElementById(`g-val-${z}`).textContent = msg.g;
+            document.getElementById(`b-${z}`).value = msg.b;
+            document.getElementById(`b-val-${z}`).textContent = msg.b;
+            document.getElementById(`w-${z}`).value = msg.w;
+            document.getElementById(`w-val-${z}`).textContent = msg.w;
+            document.getElementById(`strobe-${z}`).value = msg.strobe;
+            document.getElementById(`strobe-val-${z}`).textContent = msg.strobe;
+            updatePreview(z);
+          }
         } catch {}
       };
 
@@ -269,7 +416,10 @@
       };
     }
 
-    connect();
+    // Start connection if already logged in
+    if (sessionStorage.getItem('stadium_auth') === '1') {
+      connect();
+    }
   </script>
 </body>
 </html>

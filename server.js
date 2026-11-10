@@ -69,7 +69,13 @@ function broadcastZone(zoneId) {
   });
 
   for (const [ws, meta] of clients) {
-    if (meta.type === 'audience' && meta.zoneId === zoneId && ws.readyState === 1) {
+    if (ws.readyState !== 1) continue;
+    // Audience clients of this zone
+    if (meta.type === 'audience' && meta.zoneId === zoneId) {
+      ws.send(payload);
+    }
+    // All control panels get live updates
+    if (meta.type === 'control') {
       ws.send(payload);
     }
   }
