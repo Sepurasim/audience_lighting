@@ -250,7 +250,7 @@
     const totalEl = document.getElementById('totalClients');
 
     for (let i = 1; i <= NUM_ZONES; i++) {
-      zoneState[i] = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, clients: 0 };
+      zoneState[i] = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, torch: 0, clients: 0 };
 
       const card = document.createElement('div');
       card.className = 'zone-card';
@@ -260,7 +260,7 @@
         <div class="preview" id="preview-${i}">
           <span class="live-label">LIVE</span>
         </div>
-        <div class="live-values" id="live-${i}">D:0  R:0  G:0  B:0  W:0  S:0</div>
+        <div class="live-values" id="live-${i}">D:0  R:0  G:0  B:0  W:0  S:0  T:0</div>
 
         <label>Dimmer <span class="val" id="dim-val-${i}">0</span></label>
         <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="dimmer" id="dim-${i}">
@@ -287,6 +287,9 @@
         <label>Strobe <span class="val" id="strobe-val-${i}">0</span></label>
         <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="strobe" id="strobe-${i}">
 
+        <label>Taschenlampe (ab 128 an) <span class="val" id="torch-val-${i}">0</span></label>
+        <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="torch" id="torch-${i}">
+
         <button class="blackout" data-zone="${i}">Blackout Zone ${i}</button>
       `;
       zonesEl.appendChild(card);
@@ -308,7 +311,7 @@
     document.querySelectorAll('button.blackout').forEach(btn => {
       btn.addEventListener('click', () => {
         const zone = +btn.dataset.zone;
-        ['dimmer','r','g','b','w','strobe'].forEach(ch => {
+        ['dimmer','r','g','b','w','strobe','torch'].forEach(ch => {
           zoneState[zone][ch] = 0;
           const id = ch === 'dimmer' ? `dim-${zone}` : `${ch}-${zone}`;
           document.getElementById(id).value = 0;
@@ -321,7 +324,7 @@
 
     document.getElementById('globalBlackout').addEventListener('click', () => {
       for (let i = 1; i <= NUM_ZONES; i++) {
-        ['dimmer','r','g','b','w','strobe'].forEach(ch => {
+        ['dimmer','r','g','b','w','strobe','torch'].forEach(ch => {
           zoneState[i][ch] = 0;
           const id = ch === 'dimmer' ? `dim-${i}` : `${ch}-${i}`;
           document.getElementById(id).value = 0;
@@ -348,7 +351,7 @@
 
       // Live values display
       document.getElementById(`live-${zone}`).textContent =
-        `D:${s.dimmer}  R:${s.r}  G:${s.g}  B:${s.b}  W:${s.w}  S:${s.strobe}`;
+        `D:${s.dimmer}  R:${s.r}  G:${s.g}  B:${s.b}  W:${s.w}  S:${s.strobe}  T:${s.torch}`;
     }
 
     function sendManual(zone) {
@@ -362,7 +365,8 @@
         g: s.g,
         b: s.b,
         w: s.w,
-        strobe: s.strobe
+        strobe: s.strobe,
+        torch: s.torch
       }));
     }
 
@@ -396,6 +400,7 @@
             zoneState[z].b = msg.b;
             zoneState[z].w = msg.w;
             zoneState[z].strobe = msg.strobe;
+            zoneState[z].torch = msg.torch || 0;
 
             // Update sliders + display without triggering send
             document.getElementById(`dim-${z}`).value = msg.dimmer;
@@ -410,6 +415,8 @@
             document.getElementById(`w-val-${z}`).textContent = msg.w;
             document.getElementById(`strobe-${z}`).value = msg.strobe;
             document.getElementById(`strobe-val-${z}`).textContent = msg.strobe;
+            document.getElementById(`torch-${z}`).value = msg.torch || 0;
+            document.getElementById(`torch-val-${z}`).textContent = msg.torch || 0;
             updatePreview(z);
           }
         } catch {}

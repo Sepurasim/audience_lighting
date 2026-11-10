@@ -184,10 +184,13 @@
     const NUM_ZONES = 10;
     let selectedZone = null;
     let ws = null;
-    let current = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0 };
+    let current = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, torch: 0 };
     let strobeInterval = null;
     let strobeOn = true;
     let wakeLock = null;
+    let torchTrack = null;
+    let torchStream = null;
+    let torchSupported = false;
 
     // ===== Splash Animation =====
     setTimeout(() => {
@@ -234,6 +237,8 @@
 
       setup.style.display = 'none';
       stage.style.display = 'block';
+      // Request camera/torch permission right at start
+      initTorch();
       connect();
     });
 
@@ -241,6 +246,44 @@
       if (document.fullscreenElement) document.exitFullscreen();
       location.reload();
     });
+
+
+    // ===== Torch / Flashlight =====
+    async function initTorch() {
+      try {
+        // Request camera early so permission dialog appears at start
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        torchStream = stream;
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (capabilities.torch) {
+          torchTrack = track;
+          torchSupported = true;
+          // Turn off initially
+          await track.applyConstraints({ advanced: [{ torch: false }] });
+          console.log('Torch supported');
+        } else {
+          // No torch capability – stop tracks
+          stream.getTracks().forEach(t => t.stop());
+          torchStream = null;
+          console.log('Torch not supported on this device');
+        }
+      } catch (err) {
+        console.log('Torch permission denied or unavailable:', err.message);
+        torchSupported = false;
+      }
+    }
+
+    async function setTorch(on) {
+      if (!torchSupported || !torchTrack) return;
+      try {
+        await torchTrack.applyConstraints({ advanced: [{ torch: !!on }] });
+      } catch (e) {
+        console.warn('Torch toggle failed', e);
+      }
+    }
 
     function connect() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -262,10 +305,13 @@
               g: msg.g,
               b: msg.b,
               w: msg.w,
-              strobe: msg.strobe
+              strobe: msg.strobe,
+              torch: msg.torch || 0
             };
             applyColor();
             updateStrobe();
+            // Torch: on from 128 upwards
+            setTorch(current.torch >= 128);
           }
         } catch {}
       };

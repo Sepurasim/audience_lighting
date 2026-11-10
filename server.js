@@ -3,7 +3,7 @@
  * - Serves both frontends (Audience + Control)
  * - WebSocket hub for phones
  * - Receives zone data from local Art-Net forwarder
- * - 10 Zones × (Dimmer + R + G + B + W + Strobe)
+ * - 10 Zones × (Dimmer + R + G + B + W + Strobe + Torch)
  */
 
 const express = require('express');
@@ -25,6 +25,7 @@ const zones = Array.from({ length: NUM_ZONES }, (_, i) => ({
   b: 0,
   w: 0,
   strobe: 0,          // 0 = off, 1-255 = speed
+  torch: 0,           // 0-127 = off, 128-255 = on
   clients: 0
 }));
 
@@ -65,7 +66,8 @@ function broadcastZone(zoneId) {
     g: zone.g,
     b: zone.b,
     w: zone.w,
-    strobe: zone.strobe
+    strobe: zone.strobe,
+    torch: zone.torch
   });
 
   for (const [ws, meta] of clients) {
@@ -125,7 +127,8 @@ wss.on('connection', (ws, req) => {
         g: z.g,
         b: z.b,
         w: z.w,
-        strobe: z.strobe
+        strobe: z.strobe,
+        torch: z.torch
       }));
 
       broadcastStatus();
@@ -146,28 +149,31 @@ wss.on('connection', (ws, req) => {
     // ---- Local Art-Net Forwarder sends universe data ----
     if (msg.type === 'artnet' && msg.secret === FORWARDER_SECRET) {
       // msg.data = array of 512 channel values (0-255)
-      // We map first 60 channels to our 10 zones
+      // We map first 70 channels to our 10 zones (7 ch each)
       const data = msg.data;
-      if (!Array.isArray(data) || data.length < 60) return;
+      if (!Array.isArray(data) || data.length < 70) return;
 
       for (let z = 0; z < NUM_ZONES; z++) {
-        const base = z * 6;
+        const base = z * 7;
         const dimmer = data[base]     || 0;
         const r      = data[base + 1] || 0;
         const g      = data[base + 2] || 0;
         const b      = data[base + 3] || 0;
         const w      = data[base + 4] || 0;
         const strobe = data[base + 5] || 0;
+        const torch  = data[base + 6] || 0;
 
         const zone = zones[z];
         if (zone.dimmer !== dimmer || zone.r !== r || zone.g !== g ||
-            zone.b !== b || zone.w !== w || zone.strobe !== strobe) {
+            zone.b !== b || zone.w !== w || zone.strobe !== strobe ||
+            zone.torch !== torch) {
           zone.dimmer = dimmer;
           zone.r = r;
           zone.g = g;
           zone.b = b;
           zone.w = w;
           zone.strobe = strobe;
+          zone.torch = torch;
           broadcastZone(z + 1);
         }
       }
@@ -183,6 +189,7 @@ wss.on('connection', (ws, req) => {
       if (typeof msg.b === 'number') z.b = clamp(msg.b);
       if (typeof msg.w === 'number') z.w = clamp(msg.w);
       if (typeof msg.strobe === 'number') z.strobe = clamp(msg.strobe);
+      if (typeof msg.torch === 'number') z.torch = clamp(msg.torch);
       broadcastZone(msg.zoneId);
     }
   });
