@@ -6,6 +6,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <title>Stadium Light – Zone wählen</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -321,6 +325,14 @@
     document.addEventListener('touchmove', e => {
       if (stage.style.display === 'block') e.preventDefault();
     }, { passive: false });
+  </script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(console.error);
+      });
+    }
   </script>
 </body>
 </html>
