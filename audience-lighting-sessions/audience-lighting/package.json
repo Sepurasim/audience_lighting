@@ -1,0 +1,19 @@
+{
+  "name": "audience-lighting",
+  "version": "1.0.0",
+  "description": "Stadium audience phone lighting system with Art-Net bridge and 10 zones (RGBW + Dimmer + Strobe)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "forwarder": "node local-forwarder/forwarder.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0",
+    "artnet": "^1.4.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

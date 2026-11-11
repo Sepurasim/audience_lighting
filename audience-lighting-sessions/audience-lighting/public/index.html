@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <title>Stadium Light – Zone wählen</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%; background: #000; color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden; touch-action: manipulation;
+    }
+    #splash {
+      position: fixed; inset: 0; background: #000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; transition: opacity 0.8s ease, visibility 0.8s;
+    }
+    #splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+    #splash img {
+      max-width: 85%; width: 340px; opacity: 0; transform: scale(0.85);
+      animation: logoIn 1.4s ease-out 0.2s forwards;
+    }
+    @keyframes logoIn {
+      0% { opacity: 0; transform: scale(0.85); }
+      60% { opacity: 1; transform: scale(1.03); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    #setup {
+      position: fixed; inset: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; padding: 20px;
+      background: #0a0a0a; z-index: 100; overflow-y: auto;
+    }
+    #setup.show { display: flex; }
+    h1 { font-size: 1.5rem; margin-bottom: 6px; text-align: center; }
+    p.sub { color: #888; margin-bottom: 16px; text-align: center; font-size: 0.9rem; }
+    .session-box {
+      width: 100%; max-width: 360px; margin-bottom: 20px;
+    }
+    .session-box label { display: block; font-size: 0.8rem; color: #888; margin-bottom: 4px; }
+    .session-box select, .session-box input {
+      width: 100%; background: #1a1a1a; border: 1px solid #333; color: #fff;
+      padding: 12px; font-size: 1rem; border-radius: 10px; margin-bottom: 8px;
+    }
+    .zone-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+      width: 100%; max-width: 360px; margin-bottom: 20px;
+    }
+    .zone-btn {
+      background: #1a1a1a; border: 2px solid #333; color: #fff;
+      padding: 16px 8px; font-size: 0.95rem; border-radius: 12px; cursor: pointer;
+      transition: all 0.15s; min-height: 56px;
+    }
+    .zone-btn:active, .zone-btn.selected {
+      background: #2a2a2a; border-color: #0af; transform: scale(0.97);
+    }
+    #startBtn {
+      width: 100%; max-width: 360px; padding: 16px; font-size: 1.15rem; font-weight: 600;
+      background: #0af; color: #000; border: none; border-radius: 12px; cursor: pointer;
+      opacity: 0.4; pointer-events: none;
+    }
+    #startBtn.active { opacity: 1; pointer-events: auto; }
+    #stage {
+      position: fixed; inset: 0; background: #000; display: none; z-index: 50;
+    }
+    #status {
+      position: absolute; top: 12px; left: 12px; font-size: 0.75rem;
+      color: rgba(255,255,255,0.35); z-index: 60; pointer-events: none;
+    }
+    #exitBtn {
+      position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.5);
+      color: #fff; border: 1px solid #444; padding: 8px 14px; border-radius: 8px;
+      font-size: 0.85rem; z-index: 60; opacity: 0.3;
+    }
+    #exitBtn:active { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <img src="logo.png" alt="Stadium Lighting – Powered by StageCraft VT">
+  </div>
+
+  <div id="setup">
+    <h1>Stadium Light</h1>
+    <p class="sub">Session &amp; Standort wählen</p>
+
+    <div class="session-box">
+      <label>Session</label>
+      <select id="sessionSelect"><option value="">Laden…</option></select>
+      <input type="text" id="sessionManual" placeholder="Oder Session-Name eingeben" style="display:none">
+    </div>
+
+    <div class="zone-grid" id="zoneGrid"></div>
+    <button id="startBtn">Fullscreen starten</button>
+  </div>
+
+  <div id="stage">
+    <div id="status">Zone – · offline</div>
+    <button id="exitBtn">Beenden</button>
+  </div>
+
+  <script>
+    const NUM_ZONES = 10;
+    let selectedZone = null;
+    let selectedSessionName = null;
+    let selectedSessionId = null;
+    let zoneNames = {};
+    let ws = null;
+    let current = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, torch: 0 };
+    let strobeInterval = null;
+    let strobeOn = true;
+    let wakeLock = null;
+    let torchTrack = null;
+    let torchStream = null;
+    let torchSupported = false;
+
+    // URL params
+    const params = new URLSearchParams(location.search);
+    const urlSession = params.get('session') || params.get('s') || '';
+    const urlZone = params.get('zone') || params.get('z') || '';
+
+    setTimeout(function() {
+      document.getElementById('splash').classList.add('hide');
+      setTimeout(function() {
+        document.getElementById('setup').classList.add('show');
+      }, 700);
+    }, 2200);
+
+    // Load sessions
+    fetch('/api/sessions').then(function(r) { return r.json(); }).then(function(list) {
+      const sel = document.getElementById('sessionSelect');
+      sel.innerHTML = '';
+      if (!list.length) {
+        sel.innerHTML = '<option value="">Keine Session</option>';
+        return;
+      }
+      list.forEach(function(s) {
+        const opt = document.createElement('option');
+        opt.value = s.name;
+        opt.dataset.id = s.id;
+        opt.textContent = s.name + (s.clients ? ' (' + s.clients + ')' : '');
+        sel.appendChild(opt);
+      });
+      if (urlSession) {
+        sel.value = urlSession;
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value.toLowerCase() === urlSession.toLowerCase()) {
+            sel.selectedIndex = i;
+            break;
+          }
+        }
+      }
+      selectedSessionName = sel.value;
+      selectedSessionId = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].dataset.id : null;
+      // Try to get zone names via a lightweight connect later
+    }).catch(function() {
+      document.getElementById('sessionSelect').innerHTML = '<option value="Default">Default</option>';
+      selectedSessionName = 'Default';
+    });
+
+    document.getElementById('sessionSelect').addEventListener('change', function() {
+      const sel = document.getElementById('sessionSelect');
+      selectedSessionName = sel.value;
+      selectedSessionId = sel.options[sel.selectedIndex].dataset.id || null;
+      // reset zone selection names to defaults until layout arrives
+      updateZoneButtons();
+    });
+
+    function updateZoneButtons() {
+      const grid = document.getElementById('zoneGrid');
+      grid.innerHTML = '';
+      for (let i = 1; i <= NUM_ZONES; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'zone-btn';
+        btn.textContent = zoneNames[i] || ('Zone ' + i);
+        btn.dataset.zone = i;
+        if (selectedZone === i) btn.classList.add('selected');
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.zone-btn').forEach(function(b) { b.classList.remove('selected'); });
+          btn.classList.add('selected');
+          selectedZone = i;
+          document.getElementById('startBtn').classList.add('active');
+        });
+        grid.appendChild(btn);
+      }
+      if (urlZone) {
+        const z = parseInt(urlZone, 10);
+        if (z >= 1 && z <= NUM_ZONES) {
+          selectedZone = z;
+          document.querySelector('.zone-btn[data-zone="' + z + '"]')?.classList.add('selected');
+          document.getElementById('startBtn').classList.add('active');
+        }
+      }
+    }
+    updateZoneButtons();
+
+    const startBtn = document.getElementById('startBtn');
+    const stage = document.getElementById('stage');
+    const setup = document.getElementById('setup');
+    const statusEl = document.getElementById('status');
+    const exitBtn = document.getElementById('exitBtn');
+
+    startBtn.addEventListener('click', async function() {
+      if (!selectedZone) return;
+      try { await document.documentElement.requestFullscreen(); } catch (e) {}
+      try {
+        if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+      } catch (e) {}
+      setup.style.display = 'none';
+      stage.style.display = 'block';
+      initTorch();
+      connect();
+    });
+
+    exitBtn.addEventListener('click', function() {
+      if (document.fullscreenElement) document.exitFullscreen();
+      if (torchStream) torchStream.getTracks().forEach(function(t) { t.stop(); });
+      location.reload();
+    });
+
+    async function initTorch() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        torchStream = stream;
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (capabilities.torch) {
+          torchTrack = track;
+          torchSupported = true;
+          await track.applyConstraints({ advanced: [{ torch: false }] });
+        } else {
+          stream.getTracks().forEach(function(t) { t.stop(); });
+          torchStream = null;
+        }
+      } catch (err) {
+        torchSupported = false;
+      }
+    }
+
+    async function setTorch(on) {
+      if (!torchSupported || !torchTrack) return;
+      try {
+        await torchTrack.applyConstraints({ advanced: [{ torch: !!on }] });
+      } catch (e) {}
+    }
+
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(protocol + '//' + location.host);
+      ws.onopen = function() {
+        ws.send(JSON.stringify({
+          type: 'registerAudience',
+          zoneId: selectedZone,
+          sessionId: selectedSessionId,
+          sessionName: selectedSessionName
+        }));
+        statusEl.textContent = (zoneNames[selectedZone] || ('Zone ' + selectedZone)) + ' · verbunden';
+      };
+      ws.onmessage = function(ev) {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'layout') {
+            (msg.zones || []).forEach(function(z) {
+              zoneNames[z.id] = z.name;
+            });
+          }
+          if (msg.type === 'zoneUpdate' && msg.zoneId === selectedZone) {
+            current = {
+              dimmer: msg.dimmer, r: msg.r, g: msg.g, b: msg.b, w: msg.w,
+              strobe: msg.strobe, torch: msg.torch || 0
+            };
+            if (msg.name) {
+              zoneNames[selectedZone] = msg.name;
+              statusEl.textContent = msg.name + ' · verbunden';
+            }
+            applyColor();
+            updateStrobe();
+            setTorch(current.torch >= 128);
+          }
+        } catch (e) {}
+      };
+      ws.onclose = function() {
+        statusEl.textContent = (zoneNames[selectedZone] || ('Zone ' + selectedZone)) + ' · offline – reconnect…';
+        setTimeout(connect, 2000);
+      };
+      ws.onerror = function() { ws.close(); };
+    }
+
+    function applyColor() {
+      const d = current.dimmer / 255;
+      const r = Math.round(current.r * d);
+      const g = Math.round(current.g * d);
+      const b = Math.round(current.b * d);
+      const wAdd = Math.round(current.w * d * 0.7);
+      const finalR = Math.min(255, r + wAdd);
+      const finalG = Math.min(255, g + wAdd);
+      const finalB = Math.min(255, b + wAdd);
+      if (current.strobe === 0) {
+        stage.style.backgroundColor = 'rgb(' + finalR + ',' + finalG + ',' + finalB + ')';
+      } else {
+        stage.dataset.base = 'rgb(' + finalR + ',' + finalG + ',' + finalB + ')';
+      }
+    }
+
+    function updateStrobe() {
+      if (strobeInterval) { clearInterval(strobeInterval); strobeInterval = null; }
+      if (current.strobe === 0) { strobeOn = true; applyColor(); return; }
+      const interval = Math.max(30, 420 - (current.strobe * 1.5));
+      strobeInterval = setInterval(function() {
+        strobeOn = !strobeOn;
+        stage.style.backgroundColor = strobeOn ? (stage.dataset.base || '#fff') : '#000';
+      }, interval);
+    }
+
+    document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+    document.addEventListener('touchmove', function(e) {
+      if (stage.style.display === 'block') e.preventDefault();
+    }, { passive: false });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').catch(console.error);
+      });
+    }
+  </script>
+</body>
+</html>
