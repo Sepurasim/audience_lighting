@@ -11,324 +11,445 @@
   <title>Stadium Light – Control</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #0a0a0a;
-      color: #eee;
-      font-family: system-ui, -apple-system, sans-serif;
-      min-height: 100vh;
-    }
+    body { background: #0a0a0a; color: #eee; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
 
-    /* Password Gate */
+    /* Login / Session Gate */
     #loginGate {
-      position: fixed;
-      inset: 0;
-      background: #000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
+      position: fixed; inset: 0; background: #000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; padding: 20px;
     }
-    #loginGate img {
-      max-width: 320px;
-      margin-bottom: 40px;
-      opacity: 0.9;
+    #loginGate img { max-width: 280px; margin-bottom: 28px; opacity: 0.9; }
+    #loginGate h2 { margin-bottom: 20px; font-weight: 500; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tabs button {
+      background: #1a1a1a; border: 1px solid #333; color: #aaa;
+      padding: 10px 20px; border-radius: 8px; cursor: pointer;
     }
-    #loginGate input {
-      background: #1a1a1a;
-      border: 1px solid #333;
-      color: #fff;
-      padding: 14px 18px;
-      font-size: 1.1rem;
-      border-radius: 10px;
-      width: 220px;
-      text-align: center;
-      letter-spacing: 4px;
-      margin-bottom: 16px;
+    .tabs button.active { background: #0af; color: #000; border-color: #0af; }
+    .form-box { width: 100%; max-width: 320px; }
+    .form-box label { display: block; font-size: 0.8rem; color: #888; margin: 12px 0 4px; }
+    .form-box input {
+      width: 100%; background: #1a1a1a; border: 1px solid #333; color: #fff;
+      padding: 12px 14px; font-size: 1rem; border-radius: 8px;
     }
-    #loginGate button {
-      background: #0af;
-      color: #000;
-      border: none;
-      padding: 12px 32px;
-      font-size: 1rem;
-      font-weight: 600;
-      border-radius: 10px;
-      cursor: pointer;
+    .form-box button.primary {
+      width: 100%; margin-top: 20px; padding: 14px;
+      background: #0af; color: #000; border: none; border-radius: 10px;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
     }
-    #loginGate .error {
-      color: #f66;
-      margin-top: 12px;
-      font-size: 0.9rem;
-      display: none;
+    .error { color: #f66; margin-top: 12px; font-size: 0.9rem; display: none; text-align: center; }
+    .session-list { margin-top: 16px; max-height: 160px; overflow-y: auto; width: 100%; max-width: 320px; }
+    .session-list button {
+      display: block; width: 100%; text-align: left; background: #1a1a1a;
+      border: 1px solid #333; color: #ccc; padding: 10px 12px; margin-bottom: 6px;
+      border-radius: 8px; cursor: pointer; font-size: 0.9rem;
     }
+    .session-list button:hover { border-color: #0af; }
 
-    #app {
-      display: none;
-      padding: 20px;
-    }
+    #app { display: none; padding: 16px 20px 40px; }
 
-    h1 { margin-bottom: 6px; }
-    .sub { color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+    .topbar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+      margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #222;
+    }
+    .topbar h1 { font-size: 1.3rem; margin-right: auto; }
+    .topbar .session-name { color: #0af; font-size: 0.95rem; }
+    .topbar button {
+      background: #1a1a1a; border: 1px solid #333; color: #eee;
+      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem;
+    }
+    .topbar button.accent { background: #0a2a3a; border-color: #0af; color: #0af; }
+    .topbar button.danger { background: #300; border-color: #600; color: #f66; }
 
     .status-bar {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 20px;
-      padding: 12px 16px;
-      background: #1a1a1a;
-      border-radius: 10px;
-      font-size: 0.9rem;
+      display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+      padding: 10px 14px; background: #1a1a1a; border-radius: 10px; font-size: 0.85rem;
     }
     .status-bar span { color: #0af; }
 
-    #globalBlackout {
-      margin-bottom: 20px;
-      padding: 12px 24px;
-      background: #400;
-      color: #faa;
-      border: 1px solid #800;
-      border-radius: 10px;
-      font-size: 1rem;
-      cursor: pointer;
+    /* Layout Editor Modal */
+    #layoutModal {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 8000; align-items: center; justify-content: center; padding: 16px;
+    }
+    #layoutModal.open { display: flex; }
+    .layout-panel {
+      background: #141414; border: 1px solid #333; border-radius: 14px;
+      width: 100%; max-width: 900px; max-height: 92vh; overflow: auto; padding: 20px;
+    }
+    .layout-panel h2 { margin-bottom: 8px; }
+    .layout-panel .hint { color: #888; font-size: 0.85rem; margin-bottom: 16px; }
+    #stage2d {
+      position: relative; width: 100%; aspect-ratio: 16/10;
+      background: #0d0d0d; border: 1px solid #333; border-radius: 10px;
+      overflow: hidden; touch-action: none;
+    }
+    #stage2d .zone-node {
+      position: absolute; width: 72px; height: 72px; margin-left: -36px; margin-top: -36px;
+      border-radius: 50%; border: 2px solid #0af; background: rgba(0,170,255,0.15);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: grab; user-select: none; font-size: 0.7rem; text-align: center;
+      color: #fff; transition: box-shadow 0.15s;
+    }
+    #stage2d .zone-node:active { cursor: grabbing; }
+    #stage2d .zone-node.dragging { box-shadow: 0 0 20px #0af; z-index: 10; }
+    #stage2d .zone-node .zn-name { font-weight: 600; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #stage2d .zone-node .zn-id { font-size: 0.65rem; color: #0af; }
+    .layout-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .layout-actions button {
+      padding: 10px 18px; border-radius: 8px; border: 1px solid #333;
+      background: #1a1a1a; color: #eee; cursor: pointer;
+    }
+    .layout-actions button.save { background: #0af; color: #000; border: none; font-weight: 600; }
+
+    /* Rename inline */
+    .zone-card h3 input.rename-input {
+      background: #111; border: 1px solid #0af; color: #fff;
+      padding: 2px 6px; border-radius: 4px; font-size: 1rem; width: 140px;
     }
 
     .zones {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
     }
-
     .zone-card {
-      background: #1c1c1c;
-      border: 1px solid #333;
-      border-radius: 12px;
-      padding: 16px;
+      background: #1c1c1c; border: 1px solid #333; border-radius: 12px; padding: 14px;
     }
     .zone-card h3 {
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
     }
+    .zone-card h3 .name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+    .zone-card h3 .name-text { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .zone-card h3 .name-text:hover { color: #0af; }
     .clients {
-      font-size: 0.8rem;
-      color: #0af;
-      background: #0a2a3a;
-      padding: 2px 8px;
-      border-radius: 20px;
+      font-size: 0.75rem; color: #0af; background: #0a2a3a;
+      padding: 2px 8px; border-radius: 20px; flex-shrink: 0;
     }
-
     .preview {
-      height: 56px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      border: 1px solid #444;
-      transition: background 0.05s;
-      position: relative;
+      height: 48px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #444;
+      position: relative; transition: background 0.05s;
     }
     .preview .live-label {
-      position: absolute;
-      bottom: 4px;
-      right: 8px;
-      font-size: 0.7rem;
-      color: rgba(255,255,255,0.7);
-      text-shadow: 0 0 4px #000;
+      position: absolute; bottom: 4px; right: 8px; font-size: 0.65rem;
+      color: rgba(255,255,255,0.7); text-shadow: 0 0 4px #000;
     }
-
     .live-values {
-      font-size: 0.75rem;
-      color: #aaa;
-      margin-bottom: 12px;
-      font-family: monospace;
-      background: #111;
-      padding: 6px 8px;
-      border-radius: 6px;
+      font-size: 0.7rem; color: #aaa; margin-bottom: 10px; font-family: monospace;
+      background: #111; padding: 5px 8px; border-radius: 6px;
     }
-
-    label {
-      display: block;
-      font-size: 0.75rem;
-      color: #999;
-      margin-bottom: 2px;
-      margin-top: 8px;
-    }
-    input[type=range] {
-      width: 100%;
-      accent-color: #0af;
-    }
-    .val {
-      float: right;
-      color: #ccc;
-      font-size: 0.8rem;
-    }
-
-    .row {
-      display: flex;
-      gap: 8px;
-    }
+    label { display: block; font-size: 0.72rem; color: #999; margin-bottom: 2px; margin-top: 6px; }
+    input[type=range] { width: 100%; accent-color: #0af; }
+    .val { float: right; color: #ccc; font-size: 0.75rem; }
+    .row { display: flex; gap: 6px; }
     .row > div { flex: 1; }
-
     button.blackout {
-      margin-top: 12px;
-      width: 100%;
-      padding: 8px;
-      background: #300;
-      color: #f66;
-      border: 1px solid #600;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.85rem;
+      margin-top: 10px; width: 100%; padding: 8px; background: #300; color: #f66;
+      border: 1px solid #600; border-radius: 8px; cursor: pointer; font-size: 0.8rem;
     }
-    button.blackout:active { background: #500; }
+    #globalBlackout {
+      margin-bottom: 16px; padding: 10px 20px; background: #400; color: #faa;
+      border: 1px solid #800; border-radius: 10px; font-size: 0.95rem; cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
-  <!-- Password Gate -->
   <div id="loginGate">
     <img src="logo.png" alt="Stadium Lighting">
-    <input type="password" id="pwInput" placeholder="Passwort" maxlength="8" autofocus>
-    <button id="loginBtn">Login</button>
-    <div class="error" id="loginError">Falsches Passwort</div>
+    <div class="tabs">
+      <button type="button" class="active" data-tab="login">Session öffnen</button>
+      <button type="button" data-tab="create">Neue Session</button>
+    </div>
+
+    <div class="form-box" id="loginForm">
+      <label>Session-Name</label>
+      <input type="text" id="loginName" placeholder="z.B. Default" autocomplete="username">
+      <label>Passwort</label>
+      <input type="password" id="loginPw" placeholder="Passwort" autocomplete="current-password">
+      <button type="button" class="primary" id="loginBtn">Öffnen</button>
+      <div class="error" id="loginError"></div>
+      <div class="session-list" id="sessionList"></div>
+    </div>
+
+    <div class="form-box" id="createForm" style="display:none">
+      <label>Neuer Session-Name</label>
+      <input type="text" id="createName" placeholder="Mein Event" maxlength="64">
+      <label>Passwort (min. 4 Zeichen)</label>
+      <input type="password" id="createPw" placeholder="Passwort wählen" minlength="4">
+      <button type="button" class="primary" id="createBtn">Session erstellen</button>
+      <div class="error" id="createError"></div>
+    </div>
   </div>
 
   <div id="app">
-    <h1>Stadium Light – Operator</h1>
-    <p class="sub">Manuelle Steuerung + Live-Status · 10 Zonen · RGBW + Dimmer + Strobe</p>
+    <div class="topbar">
+      <h1>Stadium Light</h1>
+      <span class="session-name" id="sessionLabel">–</span>
+      <button type="button" class="accent" id="btnLayout">2D Layout / Zonen</button>
+      <button type="button" id="btnLogout">Session wechseln</button>
+    </div>
 
     <div class="status-bar">
       <div>Verbindung: <span id="conn">…</span></div>
-      <div>Gesamt-Clients: <span id="totalClients">0</span></div>
+      <div>Clients: <span id="totalClients">0</span></div>
     </div>
 
-    <button id="globalBlackout">GLOBAL BLACKOUT</button>
-
+    <button type="button" id="globalBlackout">GLOBAL BLACKOUT</button>
     <div class="zones" id="zones"></div>
   </div>
 
+  <!-- 2D Layout Editor -->
+  <div id="layoutModal">
+    <div class="layout-panel">
+      <h2>2D Layout – Draufsicht</h2>
+      <p class="hint">Zonen per Drag verschieben. Klick auf den Namen zum Umbenennen. Positionen werden gespeichert.</p>
+      <div id="stage2d"></div>
+      <div class="layout-actions">
+        <button type="button" class="save" id="btnSaveLayout">Layout speichern</button>
+        <button type="button" id="btnCloseLayout">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    const PASSWORD = '1328';
     const NUM_ZONES = 10;
     let ws = null;
+    let sessionId = null;
+    let sessionName = null;
+    let sessionPassword = null;
     const zoneState = {};
+    let layoutDirty = false;
 
-    // ---- Password Protection ----
-    const loginGate = document.getElementById('loginGate');
-    const pwInput = document.getElementById('pwInput');
-    const loginBtn = document.getElementById('loginBtn');
-    const loginError = document.getElementById('loginError');
-
-    function tryLogin() {
-      if (pwInput.value === PASSWORD) {
-        loginGate.style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        sessionStorage.setItem('stadium_auth', '1');
-        connect();
-      } else {
-        loginError.style.display = 'block';
-        pwInput.value = '';
-        pwInput.focus();
-      }
-    }
-
-    loginBtn.addEventListener('click', tryLogin);
-    pwInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') tryLogin();
-    });
-
-    // Auto-login if already authenticated in this session
-    if (sessionStorage.getItem('stadium_auth') === '1') {
-      loginGate.style.display = 'none';
-      document.getElementById('app').style.display = 'block';
-    }
-
-    // ---- Build Zone Cards ----
-    const zonesEl = document.getElementById('zones');
-    const connEl = document.getElementById('conn');
-    const totalEl = document.getElementById('totalClients');
-
-    for (let i = 1; i <= NUM_ZONES; i++) {
-      zoneState[i] = { dimmer: 0, r: 0, g: 0, b: 0, w: 0, strobe: 0, torch: 0, clients: 0 };
-
-      const card = document.createElement('div');
-      card.className = 'zone-card';
-      card.id = `zone-${i}`;
-      card.innerHTML = `
-        <h3>Zone ${i} <span class="clients" id="clients-${i}">0</span></h3>
-        <div class="preview" id="preview-${i}">
-          <span class="live-label">LIVE</span>
-        </div>
-        <div class="live-values" id="live-${i}">D:0  R:0  G:0  B:0  W:0  S:0  T:0</div>
-
-        <label>Dimmer <span class="val" id="dim-val-${i}">0</span></label>
-        <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="dimmer" id="dim-${i}">
-
-        <div class="row">
-          <div>
-            <label>R <span class="val" id="r-val-${i}">0</span></label>
-            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="r" id="r-${i}">
-          </div>
-          <div>
-            <label>G <span class="val" id="g-val-${i}">0</span></label>
-            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="g" id="g-${i}">
-          </div>
-          <div>
-            <label>B <span class="val" id="b-val-${i}">0</span></label>
-            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="b" id="b-${i}">
-          </div>
-          <div>
-            <label>W <span class="val" id="w-val-${i}">0</span></label>
-            <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="w" id="w-${i}">
-          </div>
-        </div>
-
-        <label>Strobe <span class="val" id="strobe-val-${i}">0</span></label>
-        <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="strobe" id="strobe-${i}">
-
-        <label>Taschenlampe (ab 128 an) <span class="val" id="torch-val-${i}">0</span></label>
-        <input type="range" min="0" max="255" value="0" data-zone="${i}" data-ch="torch" id="torch-${i}">
-
-        <button class="blackout" data-zone="${i}">Blackout Zone ${i}</button>
-      `;
-      zonesEl.appendChild(card);
-    }
-
-    // Event listeners
-    document.querySelectorAll('input[type=range]').forEach(input => {
-      input.addEventListener('input', (e) => {
-        const zone = +e.target.dataset.zone;
-        const ch = e.target.dataset.ch;
-        const val = +e.target.value;
-        zoneState[zone][ch] = val;
-        document.getElementById(`${ch === 'dimmer' ? 'dim' : ch}-val-${zone}`).textContent = val;
-        updatePreview(zone);
-        sendManual(zone);
+    // ---- Tabs ----
+    document.querySelectorAll('.tabs button').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tabs button').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+        document.getElementById('createForm').style.display = tab === 'create' ? 'block' : 'none';
       });
     });
 
-    document.querySelectorAll('button.blackout').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const zone = +btn.dataset.zone;
-        ['dimmer','r','g','b','w','strobe','torch'].forEach(ch => {
-          zoneState[zone][ch] = 0;
-          const id = ch === 'dimmer' ? `dim-${zone}` : `${ch}-${zone}`;
-          document.getElementById(id).value = 0;
-          document.getElementById(`${ch === 'dimmer' ? 'dim' : ch}-val-${zone}`).textContent = 0;
+    // ---- Load session list ----
+    function loadSessionList() {
+      fetch('/api/sessions').then(function(r) { return r.json(); }).then(function(list) {
+        const el = document.getElementById('sessionList');
+        el.innerHTML = '';
+        list.forEach(function(s) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = s.name + '  (' + s.clients + ' online)';
+          b.addEventListener('click', function() {
+            document.getElementById('loginName').value = s.name;
+            document.getElementById('loginPw').focus();
+          });
+          el.appendChild(b);
         });
-        updatePreview(zone);
-        sendManual(zone);
-      });
+      }).catch(function() {});
+    }
+    loadSessionList();
+
+    // ---- Login ----
+    function showError(id, text) {
+      const e = document.getElementById(id);
+      e.textContent = text;
+      e.style.display = 'block';
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', doLogin);
+    document.getElementById('loginPw').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
     });
 
-    document.getElementById('globalBlackout').addEventListener('click', () => {
+    function doLogin() {
+      const name = document.getElementById('loginName').value.trim();
+      const pw = document.getElementById('loginPw').value;
+      document.getElementById('loginError').style.display = 'none';
+      fetch('/api/sessions/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, password: pw })
+      }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+        .then(function(res) {
+          if (!res.ok) {
+            showError('loginError', res.d.error || 'Fehler');
+            return;
+          }
+          sessionId = res.d.id;
+          sessionName = res.d.name;
+          sessionPassword = pw;
+          sessionStorage.setItem('stadium_session', JSON.stringify({ id: sessionId, name: sessionName, pw: pw }));
+          enterApp(res.d.zones);
+        }).catch(function() { showError('loginError', 'Netzwerkfehler'); });
+    }
+
+    // ---- Create session ----
+    document.getElementById('createBtn').addEventListener('click', function() {
+      const name = document.getElementById('createName').value.trim();
+      const pw = document.getElementById('createPw').value;
+      document.getElementById('createError').style.display = 'none';
+      fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, password: pw })
+      }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+        .then(function(res) {
+          if (!res.ok) {
+            showError('createError', res.d.error || 'Fehler');
+            return;
+          }
+          document.getElementById('loginName').value = name;
+          document.getElementById('loginPw').value = pw;
+          document.querySelector('.tabs button[data-tab="login"]').click();
+          doLogin();
+        }).catch(function() { showError('createError', 'Netzwerkfehler'); });
+    });
+
+    // ---- Restore session ----
+    (function() {
+      try {
+        const raw = sessionStorage.getItem('stadium_session');
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        document.getElementById('loginName').value = s.name || '';
+        document.getElementById('loginPw').value = s.pw || '';
+        doLogin();
+      } catch (e) {}
+    })();
+
+    function enterApp(zones) {
+      document.getElementById('loginGate').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('sessionLabel').textContent = sessionName;
+      buildZoneCards(zones);
+      connect();
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', function() {
+      sessionStorage.removeItem('stadium_session');
+      location.reload();
+    });
+
+    // ---- Build zone cards ----
+    function buildZoneCards(zones) {
+      const zonesEl = document.getElementById('zones');
+      zonesEl.innerHTML = '';
+      zones.forEach(function(z) {
+        zoneState[z.id] = {
+          dimmer: z.dimmer || 0, r: z.r || 0, g: z.g || 0, b: z.b || 0,
+          w: z.w || 0, strobe: z.strobe || 0, torch: z.torch || 0,
+          clients: z.clients || 0, name: z.name || ('Zone ' + z.id),
+          x: typeof z.x === 'number' ? z.x : 0.1, y: typeof z.y === 'number' ? z.y : 0.2
+        };
+        const i = z.id;
+        const card = document.createElement('div');
+        card.className = 'zone-card';
+        card.id = 'zone-' + i;
+        card.innerHTML =
+          '<h3><span class="name-wrap"><span class="name-text" data-zone="' + i + '" title="Klicken zum Umbenennen">' +
+          escapeHtml(zoneState[i].name) + '</span></span>' +
+          '<span class="clients" id="clients-' + i + '">' + zoneState[i].clients + '</span></h3>' +
+          '<div class="preview" id="preview-' + i + '"><span class="live-label">LIVE</span></div>' +
+          '<div class="live-values" id="live-' + i + '">D:0  R:0  G:0  B:0  W:0  S:0  T:0</div>' +
+          '<label>Dimmer <span class="val" id="dim-val-' + i + '">0</span></label>' +
+          '<input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="dimmer" id="dim-' + i + '">' +
+          '<div class="row">' +
+          '<div><label>R <span class="val" id="r-val-' + i + '">0</span></label><input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="r" id="r-' + i + '"></div>' +
+          '<div><label>G <span class="val" id="g-val-' + i + '">0</span></label><input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="g" id="g-' + i + '"></div>' +
+          '<div><label>B <span class="val" id="b-val-' + i + '">0</span></label><input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="b" id="b-' + i + '"></div>' +
+          '<div><label>W <span class="val" id="w-val-' + i + '">0</span></label><input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="w" id="w-' + i + '"></div>' +
+          '</div>' +
+          '<label>Strobe <span class="val" id="strobe-val-' + i + '">0</span></label>' +
+          '<input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="strobe" id="strobe-' + i + '">' +
+          '<label>Taschenlampe (ab 128 an) <span class="val" id="torch-val-' + i + '">0</span></label>' +
+          '<input type="range" min="0" max="255" value="0" data-zone="' + i + '" data-ch="torch" id="torch-' + i + '">' +
+          '<button type="button" class="blackout" data-zone="' + i + '">Blackout Zone</button>';
+        zonesEl.appendChild(card);
+        updatePreview(i);
+      });
+
+      document.querySelectorAll('input[type=range]').forEach(function(input) {
+        input.addEventListener('input', function(e) {
+          const zone = +e.target.dataset.zone;
+          const ch = e.target.dataset.ch;
+          const val = +e.target.value;
+          zoneState[zone][ch] = val;
+          document.getElementById((ch === 'dimmer' ? 'dim' : ch) + '-val-' + zone).textContent = val;
+          updatePreview(zone);
+          sendManual(zone);
+        });
+      });
+
+      document.querySelectorAll('button.blackout').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const zone = +btn.dataset.zone;
+          ['dimmer','r','g','b','w','strobe','torch'].forEach(function(ch) {
+            zoneState[zone][ch] = 0;
+            const id = ch === 'dimmer' ? ('dim-' + zone) : (ch + '-' + zone);
+            document.getElementById(id).value = 0;
+            document.getElementById((ch === 'dimmer' ? 'dim' : ch) + '-val-' + zone).textContent = 0;
+          });
+          updatePreview(zone);
+          sendManual(zone);
+        });
+      });
+
+      // Rename by click on name
+      document.querySelectorAll('.name-text').forEach(function(el) {
+        attachRename(el, +el.dataset.zone);
+      });
+    }
+
+    function attachRename(el, zone) {
+      el.addEventListener('click', function() {
+        const current = zoneState[zone].name;
+        const input = document.createElement('input');
+        input.className = 'rename-input';
+        input.value = current;
+        input.maxLength = 32;
+        el.replaceWith(input);
+        input.focus();
+        input.select();
+        function commit() {
+          const newName = input.value.trim() || current;
+          zoneState[zone].name = newName;
+          if (ws && ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'renameZone', zoneId: zone, name: newName }));
+          }
+          const span = document.createElement('span');
+          span.className = 'name-text';
+          span.dataset.zone = zone;
+          span.title = 'Klicken zum Umbenennen';
+          span.textContent = newName;
+          input.replaceWith(span);
+          attachRename(span, zone);
+          // update layout node if open
+          const node = document.querySelector('.zone-node[data-zone="' + zone + '"] .zn-name');
+          if (node) node.textContent = newName;
+        }
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+          if (ev.key === 'Escape') { input.value = current; input.blur(); }
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    document.getElementById('globalBlackout').addEventListener('click', function() {
       for (let i = 1; i <= NUM_ZONES; i++) {
-        ['dimmer','r','g','b','w','strobe','torch'].forEach(ch => {
+        if (!zoneState[i]) continue;
+        ['dimmer','r','g','b','w','strobe','torch'].forEach(function(ch) {
           zoneState[i][ch] = 0;
-          const id = ch === 'dimmer' ? `dim-${i}` : `${ch}-${i}`;
-          document.getElementById(id).value = 0;
-          document.getElementById(`${ch === 'dimmer' ? 'dim' : ch}-val-${i}`).textContent = 0;
+          const id = ch === 'dimmer' ? ('dim-' + i) : (ch + '-' + i);
+          const el = document.getElementById(id);
+          if (el) el.value = 0;
+          const valEl = document.getElementById((ch === 'dimmer' ? 'dim' : ch) + '-val-' + i);
+          if (valEl) valEl.textContent = 0;
         });
         updatePreview(i);
         sendManual(i);
@@ -337,6 +458,7 @@
 
     function updatePreview(zone) {
       const s = zoneState[zone];
+      if (!s) return;
       const d = s.dimmer / 255;
       const r = Math.round(s.r * d);
       const g = Math.round(s.g * d);
@@ -345,99 +467,181 @@
       const fr = Math.min(255, r + wAdd);
       const fg = Math.min(255, g + wAdd);
       const fb = Math.min(255, b + wAdd);
-
-      document.getElementById(`preview-${zone}`).style.background =
-        `rgb(${fr},${fg},${fb})`;
-
-      // Live values display
-      document.getElementById(`live-${zone}`).textContent =
-        `D:${s.dimmer}  R:${s.r}  G:${s.g}  B:${s.b}  W:${s.w}  S:${s.strobe}  T:${s.torch}`;
+      const prev = document.getElementById('preview-' + zone);
+      if (prev) prev.style.background = 'rgb(' + fr + ',' + fg + ',' + fb + ')';
+      const live = document.getElementById('live-' + zone);
+      if (live) live.textContent = 'D:' + s.dimmer + '  R:' + s.r + '  G:' + s.g + '  B:' + s.b + '  W:' + s.w + '  S:' + s.strobe + '  T:' + s.torch;
     }
 
     function sendManual(zone) {
       if (!ws || ws.readyState !== 1) return;
       const s = zoneState[zone];
       ws.send(JSON.stringify({
-        type: 'manual',
-        zoneId: zone,
-        dimmer: s.dimmer,
-        r: s.r,
-        g: s.g,
-        b: s.b,
-        w: s.w,
-        strobe: s.strobe,
-        torch: s.torch
+        type: 'manual', zoneId: zone,
+        dimmer: s.dimmer, r: s.r, g: s.g, b: s.b, w: s.w, strobe: s.strobe, torch: s.torch
       }));
     }
 
+    // ---- WebSocket ----
     function connect() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${protocol}//${location.host}`);
-
-      ws.onopen = () => {
-        connEl.textContent = 'verbunden';
-        ws.send(JSON.stringify({ type: 'registerControl' }));
+      ws = new WebSocket(protocol + '//' + location.host);
+      ws.onopen = function() {
+        document.getElementById('conn').textContent = 'verbunden';
+        ws.send(JSON.stringify({
+          type: 'registerControl',
+          sessionId: sessionId,
+          password: sessionPassword
+        }));
       };
-
-      ws.onmessage = (ev) => {
+      ws.onmessage = function(ev) {
         try {
           const msg = JSON.parse(ev.data);
+          if (msg.type === 'error') {
+            alert(msg.error);
+            return;
+          }
+          if (msg.type === 'sessionData') {
+            // already built
+          }
           if (msg.type === 'status') {
             let total = 0;
-            msg.zones.forEach(z => {
-              zoneState[z.id].clients = z.clients;
-              document.getElementById(`clients-${z.id}`).textContent = z.clients;
+            (msg.zones || []).forEach(function(z) {
+              if (zoneState[z.id]) {
+                zoneState[z.id].clients = z.clients;
+                zoneState[z.id].name = z.name || zoneState[z.id].name;
+                zoneState[z.id].x = z.x;
+                zoneState[z.id].y = z.y;
+              }
+              const c = document.getElementById('clients-' + z.id);
+              if (c) c.textContent = z.clients;
               total += z.clients;
+              const nt = document.querySelector('#zone-' + z.id + ' .name-text');
+              if (nt && !nt.isContentEditable) nt.textContent = z.name;
             });
-            totalEl.textContent = total;
+            document.getElementById('totalClients').textContent = total;
           }
-          // Live update from Art-Net / other sources
           if (msg.type === 'zoneUpdate') {
             const z = msg.zoneId;
+            if (!zoneState[z]) return;
             zoneState[z].dimmer = msg.dimmer;
-            zoneState[z].r = msg.r;
-            zoneState[z].g = msg.g;
-            zoneState[z].b = msg.b;
-            zoneState[z].w = msg.w;
-            zoneState[z].strobe = msg.strobe;
+            zoneState[z].r = msg.r; zoneState[z].g = msg.g; zoneState[z].b = msg.b;
+            zoneState[z].w = msg.w; zoneState[z].strobe = msg.strobe;
             zoneState[z].torch = msg.torch || 0;
-
-            // Update sliders + display without triggering send
-            document.getElementById(`dim-${z}`).value = msg.dimmer;
-            document.getElementById(`dim-val-${z}`).textContent = msg.dimmer;
-            document.getElementById(`r-${z}`).value = msg.r;
-            document.getElementById(`r-val-${z}`).textContent = msg.r;
-            document.getElementById(`g-${z}`).value = msg.g;
-            document.getElementById(`g-val-${z}`).textContent = msg.g;
-            document.getElementById(`b-${z}`).value = msg.b;
-            document.getElementById(`b-val-${z}`).textContent = msg.b;
-            document.getElementById(`w-${z}`).value = msg.w;
-            document.getElementById(`w-val-${z}`).textContent = msg.w;
-            document.getElementById(`strobe-${z}`).value = msg.strobe;
-            document.getElementById(`strobe-val-${z}`).textContent = msg.strobe;
-            document.getElementById(`torch-${z}`).value = msg.torch || 0;
-            document.getElementById(`torch-val-${z}`).textContent = msg.torch || 0;
+            if (msg.name) zoneState[z].name = msg.name;
+            ['dimmer','r','g','b','w','strobe','torch'].forEach(function(ch) {
+              const val = ch === 'torch' ? (msg.torch || 0) : msg[ch];
+              const id = ch === 'dimmer' ? ('dim-' + z) : (ch + '-' + z);
+              const el = document.getElementById(id);
+              if (el) el.value = val;
+              const valEl = document.getElementById((ch === 'dimmer' ? 'dim' : ch) + '-val-' + z);
+              if (valEl) valEl.textContent = val;
+            });
             updatePreview(z);
           }
-        } catch {}
+          if (msg.type === 'layout') {
+            (msg.zones || []).forEach(function(z) {
+              if (zoneState[z.id]) {
+                zoneState[z.id].x = z.x;
+                zoneState[z.id].y = z.y;
+                zoneState[z.id].name = z.name;
+              }
+            });
+            if (document.getElementById('layoutModal').classList.contains('open')) {
+              renderLayoutNodes();
+            }
+          }
+        } catch (e) {}
       };
-
-      ws.onclose = () => {
-        connEl.textContent = 'getrennt – reconnect…';
+      ws.onclose = function() {
+        document.getElementById('conn').textContent = 'getrennt – reconnect…';
         setTimeout(connect, 2000);
       };
     }
 
-    // Start connection if already logged in
-    if (sessionStorage.getItem('stadium_auth') === '1') {
-      connect();
-    }
-  </script>
+    // ---- 2D Layout Editor ----
+    document.getElementById('btnLayout').addEventListener('click', function() {
+      document.getElementById('layoutModal').classList.add('open');
+      renderLayoutNodes();
+    });
+    document.getElementById('btnCloseLayout').addEventListener('click', function() {
+      document.getElementById('layoutModal').classList.remove('open');
+    });
 
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch(console.error);
+    function renderLayoutNodes() {
+      const stage = document.getElementById('stage2d');
+      stage.innerHTML = '';
+      for (let i = 1; i <= NUM_ZONES; i++) {
+        if (!zoneState[i]) continue;
+        const node = document.createElement('div');
+        node.className = 'zone-node';
+        node.dataset.zone = i;
+        node.style.left = (zoneState[i].x * 100) + '%';
+        node.style.top = (zoneState[i].y * 100) + '%';
+        // color from current output
+        const s = zoneState[i];
+        const d = s.dimmer / 255;
+        const fr = Math.min(255, Math.round(s.r * d + s.w * d * 0.7));
+        const fg = Math.min(255, Math.round(s.g * d + s.w * d * 0.7));
+        const fb = Math.min(255, Math.round(s.b * d + s.w * d * 0.7));
+        node.style.background = 'rgba(' + fr + ',' + fg + ',' + fb + ',0.35)';
+        node.innerHTML = '<div class="zn-id">#' + i + '</div><div class="zn-name">' + escapeHtml(s.name) + '</div>';
+        stage.appendChild(node);
+        makeDraggable(node);
+      }
+    }
+
+    function makeDraggable(node) {
+      let dragging = false;
+      function onDown(e) {
+        dragging = true;
+        node.classList.add('dragging');
+        e.preventDefault();
+      }
+      function onMove(e) {
+        if (!dragging) return;
+        const stage = document.getElementById('stage2d');
+        const rect = stage.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        let x = (clientX - rect.left) / rect.width;
+        let y = (clientY - rect.top) / rect.height;
+        x = Math.max(0.05, Math.min(0.95, x));
+        y = Math.max(0.05, Math.min(0.95, y));
+        node.style.left = (x * 100) + '%';
+        node.style.top = (y * 100) + '%';
+        const zone = +node.dataset.zone;
+        zoneState[zone].x = x;
+        zoneState[zone].y = y;
+        layoutDirty = true;
+      }
+      function onUp() {
+        dragging = false;
+        node.classList.remove('dragging');
+      }
+      node.addEventListener('mousedown', onDown);
+      node.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('touchend', onUp);
+    }
+
+    document.getElementById('btnSaveLayout').addEventListener('click', function() {
+      if (!ws || ws.readyState !== 1) return;
+      const zones = [];
+      for (let i = 1; i <= NUM_ZONES; i++) {
+        if (!zoneState[i]) continue;
+        zones.push({ id: i, name: zoneState[i].name, x: zoneState[i].x, y: zoneState[i].y });
+      }
+      ws.send(JSON.stringify({ type: 'updateLayout', zones: zones }));
+      layoutDirty = false;
+      alert('Layout gespeichert');
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').catch(console.error);
       });
     }
   </script>
